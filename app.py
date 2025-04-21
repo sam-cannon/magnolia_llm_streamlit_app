@@ -1,28 +1,42 @@
 import streamlit as st
-import openai
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+import torch
 
-# Set up your OpenAI API key
-openai.api_key = "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"  # Replace with your OpenAI API key
+# Load model and tokenizer
+@st.cache_resource
+def load_model():
+    model_name = "tiiuae/falcon-rw-1b"  # small model for local CPU/GPU
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name)
+    pipe = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0 if torch.cuda.is_available() else -1)
+    return pipe
 
-st.set_page_config(page_title="ML Chatbot", page_icon="🤖")
-st.title("Machine Learning Chatbot")
-st.write("Ask me anything about Machine Learning!")
+st.title("💬 Simple Chat with Lightweight LLM")
+pipe = load_model()
 
-# Chatbot interface
-user_input = st.text_input("Enter your question about Machine Learning:")
+# User input
+user_input = st.text_input("You:", "")
+
+# Chat history (could also use session_state for persistent history)
+if "history" not in st.session_state:
+    st.session_state.history = []
 
 if user_input:
-    try:
-        # Query OpenAI's GPT model
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant knowledgeable about machine learning."},
-                {"role": "user", "content": user_input},
-            ],
-        )
-        # Extract and display the response
-        answer = response["choices"][0]["message"]["content"]
-        st.write(f"🤖: {answer}")
-    except Exception as e:
-        st.error(f"An error occurred: {e}")
+    # Build prompt with history (optional)
+    prompt = ""
+    for role, message in st.session_state.history:
+        prompt += f"{role}: {message}\n"
+    prompt += f"You: {user_input}\nLLM:"
+
+    # Generate reply
+    with st.spinner("Thinking..."):
+        response = pipe(prompt, max_new_tokens=100, do_sample=True, temperature=0.7)[0]['generated_text']
+        reply = response.split("LLM:")[-1].strip()
+
+    # Store in history
+    st.session_state.history.append(("You", user_input))
+    st.session_state.history.append(("LLM", reply))
+
+# Display history
+for role, message in st.session_state.history:
+    st.markdown(f"**{role}**: {message}")
