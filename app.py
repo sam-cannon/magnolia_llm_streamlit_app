@@ -5,9 +5,9 @@ import torch
 # Load model and tokenizer
 @st.cache_resource
 def load_model():
-    model_name = "tiiuae/falcon-rw-1b"  # small model for local CPU/GPU
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForCausalLM.from_pretrained(model_name)
+    model_path = "./model"  # Path to the local model folder
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    model = AutoModelForCausalLM.from_pretrained(model_path)
     pipe = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0 if torch.cuda.is_available() else -1)
     return pipe
 
