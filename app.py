@@ -2,7 +2,7 @@ import streamlit as st
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 import torch
 
-# Load model and tokenizer
+# Load model and tokenizer from the local 'model' folder
 @st.cache_resource
 def load_model():
     model_path = "./model"  # Path to the local model folder
@@ -15,7 +15,7 @@ st.title("💬 Simple Chat with Lightweight LLM")
 pipe = load_model()
 
 # User input
-user_input = st.text_input("You:", "")
+user_input = st.text_input("Please ask me anything:", "")
 
 # Chat history (could also use session_state for persistent history)
 if "history" not in st.session_state:
