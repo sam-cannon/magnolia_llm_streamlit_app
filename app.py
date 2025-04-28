@@ -1,42 +1,64 @@
 import streamlit as st
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-import torch
+import os
+import pandas as pd
+from pathlib import Path
 
-# Load model and tokenizer from the local 'model' folder
-@st.cache_resource
-def load_model():
-    model_path = "./model"  # Path to the local model folder
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
-    model = AutoModelForCausalLM.from_pretrained(model_path)
-    pipe = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0 if torch.cuda.is_available() else -1)
-    return pipe
+st.title("CSV File Metrics Analyzer")
 
-st.title("💬 Simple Chat with Lightweight LLM")
-pipe = load_model()
+# Input for directory path
+directory_path = st.text_input("Enter the directory path to analyze:", value=".")
 
-# User input
-user_input = st.text_input("Please ask me anything:", "")
+# Button to trigger analysis
+if st.button("Analyze CSV Files"):
+    if not os.path.isdir(directory_path):
+        st.error("Please enter a valid directory path.")
+    else:
+        csv_metrics = []
+        
+        # Walk through directory
+        for root, _, files in os.walk(directory_path):
+            for file in files:
+                if file.endswith('.csv'):
+                    file_path = Path(root) / file
+                    try:
+                        # Read CSV
+                        df = pd.read_csv(file_path)
+                        
+                        # Calculate metrics
+                        metrics = {
+                            'File Name': file,
+                            'Path': str(file_path),
+                            'Number of Rows': len(df),
+                            'Number of Columns': len(df.columns),
+                            'File Size (KB)': round(file_path.stat().st_size / 1024, 2),
+                            'Column Names': ', '.join(df.columns)
+                        }
+                        csv_metrics.append(metrics)
+                    except Exception as e:
+                        st.warning(f"Could not process {file}: {str(e)}")
+        
+        # Display results
+        if csv_metrics:
+            st.subheader("CSV Files Found and Their Metrics")
+            # Convert to DataFrame for better display
+            metrics_df = pd.DataFrame(csv_metrics)
+            st.dataframe(metrics_df)
+            
+            # Summary statistics
+            st.subheader("Summary")
+            st.write(f"Total CSV Files Found: {len(csv_metrics)}")
+            st.write(f"Total Rows Across All Files: {metrics_df['Number of Rows'].sum()}")
+            st.write(f"Total Columns Across All Files: {metrics_df['Number of Columns'].sum()}")
+            st.write(f"Total File Size (KB): {metrics_df['File Size (KB)'].sum():.2f}")
+        else:
+            st.info("No CSV files found in the specified directory.")
 
-# Chat history (could also use session_state for persistent history)
-if "history" not in st.session_state:
-    st.session_state.history = []
-
-if user_input:
-    # Build prompt with history (optional)
-    prompt = ""
-    for role, message in st.session_state.history:
-        prompt += f"{role}: {message}\n"
-    prompt += f"You: {user_input}\nLLM:"
-
-    # Generate reply
-    with st.spinner("Thinking..."):
-        response = pipe(prompt, max_new_tokens=100, do_sample=True, temperature=0.7)[0]['generated_text']
-        reply = response.split("LLM:")[-1].strip()
-
-    # Store in history
-    st.session_state.history.append(("You", user_input))
-    st.session_state.history.append(("LLM", reply))
-
-# Display history
-for role, message in st.session_state.history:
-    st.markdown(f"**{role}**: {message}")
+# Instructions for running the app
+st.markdown("""
+### How to Run This App
+1. Save this code as `csv_metrics_app.py`
+2. Install required packages: `pip install streamlit pandas`
+3. Run the app: `streamlit run csv_metrics_app.py`
+4. Open the provided URL in your browser
+5. Enter a directory path and click 'Analyze CSV Files'
+""")
